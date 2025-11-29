@@ -78,10 +78,10 @@ try {
     echo "✅ Éxito: Se han insertado {$count} recetas de prueba correctamente.\n";
 
 } catch (\PDOException $e) {
-    echo "❌ Error de Conexión o SQL: " . $e->getMessage() . "\n";
+    echo "❌ Error de Conexión o SQL ";
     exit(1);
 } catch (\Exception $e) {
-    echo "❌ Error: " . $e->getMessage() . "\n";
+    echo "❌ Error ";
     exit(1);
 }
 
