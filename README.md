@@ -40,26 +40,6 @@ Vistas → renderizado
 OOP + Namespaces:
 Código organizado en clases y espacios de nombres profesionales.
 
-------------------------------------------------------------------------
-
-## 🛠️ Estructura del Código
-
-  ------------------------------------------------------------------------------
-  Archivo                  Namespace                Descripción
-  ------------------------ ------------------------ ----------------------------
-  `Database.php`           `App`                    Conexión y consultas seguras
-                                                    vía PDO
-
-  `RecetaModel.php`        `App\Models`             Lógica de datos y paginación
-
-  `RecetaController.php`   `App\Controllers`        Lógica de negocio,
-                                                    renderizado
-  ------------------------------------------------------------------------------
-
-------------------------------------------------------------------------
-
-## 🚀 Instalación y Uso
-
 ### Prerrequisitos
 
 PHP 8.2+, MySQL / MariaDB, Servidor web: Apache / Nginx, Activada la extensión PDO.
