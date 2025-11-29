@@ -1,128 +1,81 @@
 <?php
 
-// === CÓDIGO CLAVE PARA EL SERVIDOR NATIVO DE PHP ===
-// Si la solicitud es para un archivo estático que existe en 'public/',
-// el servidor nativo lo sirve directamente y detiene la ejecución del script PHP.
-if (php_sapi_name() === 'cli-server' && is_file(__DIR__ . parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH))) {
-    return false;
-}
-// ===================================================
+use App\Controllers\RecetaController;
+use App\Database;
 
-/**
- * Función de autocarga para mapear namespaces a rutas de archivo (PSR-4 básico manual).
- * @param string $class Nombre de la clase con namespace (ej: App\Models\RecetaModel)
- */
-spl_autoload_register(function ($class) {
+// Definir el punto de entrada de la aplicación
+define('APP_ROOT', __DIR__ . '/../');
 
-    // 1. Definir el prefijo del namespace de la aplicación y el directorio base.
-    $prefix = 'App\\';
-    $base_dir = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR;
+require APP_ROOT . 'vendor/autoload.php';
+// Requerir archivos de configuración y clases core 
+require APP_ROOT . 'app/Database.php';
+require APP_ROOT . 'app/View.php';
+require APP_ROOT . 'app/SessionManager.php';
+require APP_ROOT . 'app/CsrfToken.php';
+require APP_ROOT . 'app/Controllers/Controller.php'; // Clase base
+require APP_ROOT . 'app/Controllers/RecetaController.php'; 
+require APP_ROOT . 'app/Models/Model.php';
+require APP_ROOT . 'app/Models/RecetaModel.php';
 
-    // ¿La clase usa el prefijo 'App\'?
-    $len = strlen($prefix);
-
-    if (strncmp($prefix, $class, $len) !== 0) {
-        // No, el autoloader no es responsable por esta clase.
-        return;
-    }
-
-    // 2. Obtener el nombre de clase relativo, quitando el prefijo.
-    // Ej: App\Models\RecetaModel -> Models\RecetaModel
-    $relative_class = substr($class, $len);
-
-    // 3. Crear el path de archivo:
-    // Reemplaza los separadores de namespace (\) con separadores de directorio (/)
-    // y añade la extensión .php.
-    // Ej: $base_dir . Models/RecetaModel.php
-    $file = $base_dir . str_replace('\\', DIRECTORY_SEPARATOR, $relative_class) . '.php';
-
-    // 4. Incluir el archivo si existe.
-    if (file_exists($file)) {
-        require $file;
-    }
-});
-
-// === INICIO DE SESIÓN ===
-// Usamos el SessionManager para iniciar la sesión de forma controlada
+// Inicialización de la sesión (primero en ejecutarse)
 \App\SessionManager::start();
 
-// ----------------------------------------------------
-// CARGA DE LA CONFIGURACIÓN DE LA BASE DE DATOS
-// ----------------------------------------------------
+// Configuración de la base de datos 
+$dbConfig = [
+    'host' => 'localhost',
+    'dbname' => 'eco_nutri',
+    'user' => 'root', 
+    'pass' => '',    
+];
+$db = new Database($dbConfig['host'], $dbConfig['dbname'], $dbConfig['user'], $dbConfig['pass']);
 
-// __DIR__ . '/..' apunta al directorio raíz del proyecto (eco-nutri-tracker)
-$dbConfig = require __DIR__ . '/../db.php';
 
-// ----------------------------------------------------
-// II. ENRUTAMIENTO (Simulación)
-// ----------------------------------------------------
+// --- Lógica de Ruteo Segura (Evita Path Traversal y Dynamic Eval) ---
 
-// Simulación de enrutamiento para obtener ControllerName y ActionName
-// En un sistema real, esto lo haría una clase Router
-$uri = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');
+$uri = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/', '/');
 $parts = explode('/', $uri);
 
-// Simulación de enrutamiento para obtener ControllerName y ActionName
-// $parts[0] será una cadena vacía si la URI es solo "/"
-$controllerName = ucfirst(strtolower($parts[0] ?? '')); // Primero intentamos obtenerlo
+// 1. Sanitización y Validación del Controlador (Evita Path Traversal)
+// El valor debe ser alfanumérico y se convierte a formato capitalizado (Ej: receta -> Receta)
+$controllerName = trim(ucfirst(strtolower($parts[0] ?? 'Receta')));
 
-// Si no se encontró ningún controlador, usamos el por defecto 'Receta'
-if (empty($controllerName)) {
+// Whitelist / Validación estricta
+if (!preg_match('/^[A-Za-z]+$/', $controllerName)) {
+    // Si la entrada no es alfanumérica, forzar el controlador por defecto
     $controllerName = 'Receta';
 }
 
-$actionName = strtolower($parts[1] ?? 'index');
-
-// ----------------------------------------------------
-// III. DESPACHO (Inyección y Ejecución)
-// ----------------------------------------------------
-
-// 4. Definición de las clases y métodos
 $controllerClass = "App\\Controllers\\{$controllerName}Controller";
-$actionMethod = $actionName;
 
-// 5. Verificación y Creación de Dependencias
-if (!class_exists($controllerClass)) {
-    // Manejo de error 404 para controladores no encontrados
-    http_response_code(404);
-    die("Error 404: Controlador no encontrado.");
+// 2. Sanitización y Validación del Método (Evita Eval-type Functions)
+$methodName = trim(strtolower($parts[1] ?? 'index'));
+
+// Whitelist / Validación estricta
+if (!preg_match('/^[A-Za-z]+$/', $methodName)) {
+    // Si la entrada no es alfanumérica, forzar el método por defecto
+    $methodName = 'index';
 }
 
-// 6. CREACIÓN E INYECCIÓN DE DEPENDENCIAS
+// 3. Despacho
+try {
+    if (!class_exists($controllerClass)) {
+        throw new \Exception("Controller not found: {$controllerClass}");
+    }
 
-// A. Crear la conexión a la DB (App\Database)
-$db = new App\Database(
-    $dbConfig['host'],
-    $dbConfig['dbname'],
-    $dbConfig['user'],
-    $dbConfig['pass']
-    // El charset se pasa internamente en el constructor de Database
-);
+    $controllerInstance = new $controllerClass($db);
+    
+    if (!method_exists($controllerInstance, $methodName)) {
+        throw new \Exception("Method not found: {$methodName}");
+    }
 
-// B. Crear la instancia del Modelo, inyectando la conexión a la DB
-$recetaModel = new App\Models\RecetaModel($db);
+    // 4. Invocación Segura (Método de Clase)
+    // Se invoca el método del objeto, no se usa 'eval' ni cadenas de texto sin validar
+    call_user_func([$controllerInstance, $methodName]);
 
-// C. Crear la instancia del Controlador, inyectando las dependencias necesarias
+} catch (\Exception $e) {
 
-// Determinar qué dependencias inyectar
-$dependenciesToInject = [];
-
-if (
-    $controllerClass === 'App\\Controllers\\RecetaController'
-    || $controllerClass === 'App\\Controllers\\ApiController'
-) {
-    // Si es un controlador que usa RecetaModel (como RecetaController o ApiController), inyectamos el modelo.
-    $dependenciesToInject[] = $recetaModel;
-}
-
-// Crear la instancia del controlador pasando las dependencias
-$controller = new $controllerClass(...$dependenciesToInject);
-
-// 7. Ejecutar la Acción
-if (method_exists($controller, $actionMethod)) {
-    $controller->$actionMethod();
-} else {
-    // Manejo de error 404 para métodos/acciones no encontrados
-    http_response_code(404);
-    die("Error 404: Método de acción no encontrado.");
+    http_response_code(500);
+    error_log($e->getMessage()); // Registrar error detallado
+    echo "<h1>Error del Sistema</h1><p>Algo salió mal.</p>";
+    
 }
