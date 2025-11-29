@@ -1,0 +1,26 @@
+<?php
+/**
+ * Vista principal de recetas.
+ * Variables disponibles: $flash_message, $old_input
+ */
+?>
+<h1 class="text-3xl font-extrabold text-green-700 mb-6 border-b pb-2">Gestión de Recetas</h1>
+
+<?php if (!empty($flash_message)): ?>
+    <?php foreach ($flash_message as $type => $message): ?>
+        <div class="p-4 mb-4 rounded-lg <?= ($type === 'success') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700' ?>">
+            <?= $message ?>
+        </div>
+    <?php endforeach; ?>
+<?php endif; ?>
+
+<div> 
+    <div>
+        <div id="recipe-list-fragment-container">
+            <?php 
+                // Inyectamos la vista parcial inicial (SSR)
+                require __DIR__ . '/recipe_list_fragment.phtml'; 
+            ?>
+        </div>
+    </div>
+</div>

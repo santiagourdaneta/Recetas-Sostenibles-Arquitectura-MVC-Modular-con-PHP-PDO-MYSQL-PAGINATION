@@ -1,0 +1,27 @@
+Directorios y archivos de Composer y Node
+
+/vendor/
+/composer.lock
+/node_modules
+
+Archivos de configuración y credenciales sensibles (¡Importante!)
+
+.env
+.env.local
+config.php
+credentials.php
+/App/config/database.php
+
+Logs y Cache
+
+/log/
+/temp/
+*.log
+*.sqlite
+
+Archivos de IDE y OS
+
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
