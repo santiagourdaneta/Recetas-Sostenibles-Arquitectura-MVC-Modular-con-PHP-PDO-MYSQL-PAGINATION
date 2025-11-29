@@ -2,27 +2,63 @@
 
 namespace App;
 
-use PDO;
-use PDOException;
-
+/**
+ * Clase Wrapper para la conexión a la base de datos (PDO)
+ * Asegura el uso de prepared statements para prevenir SQL Injection.
+ */
 class Database
 {
-    private $pdo;
+    private \PDO $pdo;
 
-    public function __construct(string $host, string $dbname, string $user, string $password)
+    public function __construct(string $host, string $dbname, string $user, string $pass)
     {
         $dsn = "mysql:host={$host};dbname={$dbname};charset=utf8mb4";
         $options = [
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES   => false,
+            // Activa el modo de errores para lanzar excepciones en caso de fallo
+            \PDO::ATTR_ERRMODE            => \PDO::ERRMODE_EXCEPTION,
+            // Desactiva la emulación de prepared statements para seguridad
+            \PDO::ATTR_EMULATE_PREPARES   => false,
+            // Establece el tipo de fetch predeterminado a un array asociativo
+            \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
         ];
 
         try {
-            $this->pdo = new PDO($dsn, $user, $password, $options);
-        } catch (PDOException $e) {
-            die("Error de conexión a la base de datos: " . $e->getMessage());
+            $this->pdo = new \PDO($dsn, $user, $pass, $options);
+        } catch (\PDOException $e) {
+            // Error de conexión - No se revela información sensible en el mensaje.
+            // La información detallada (user/pass) solo debe estar en logs internos.
+            error_log("DB Connection Error: " . $e->getMessage());
+            throw new \Exception("Error al conectar con la base de datos.");
         }
+    }
+
+    /**
+     * Ejecuta una consulta SELECT y retorna los resultados.
+     * Utiliza Prepared Statements.
+     *
+     * @param string $sql La consulta SQL.
+     * @param array $params Parámetros para ligar.
+     * @return \PDOStatement El objeto de la sentencia PDO.
+     */
+    public function query(string $sql, array $params = []): \PDOStatement
+    {
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt;
+    }
+
+    /**
+     * Ejecuta una consulta INSERT, UPDATE o DELETE.
+     *
+     * @param string $sql La consulta SQL.
+     * @param array $params Parámetros para ligar.
+     * @return int El número de filas afectadas.
+     */
+    public function execute(string $sql, array $params = []): int
+    {
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->rowCount();
     }
 
     /**
@@ -38,45 +74,15 @@ class Database
         try {
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute($params);
-            // Usamos fetchColumn() de PDO para obtener el valor de la primera columna (índice 0)
+            // PDO fetchColumn es seguro si los parámetros están ligados.
             $result = $stmt->fetchColumn(); 
             
-            // Retornamos 0 si la consulta falló en algo o si PDO devolvió false
             return $result !== false ? $result : 0;
             
         } catch (\PDOException $e) {
-            // En un entorno de producción, registraríamos el error.
-            // Por ahora, lanzamos una excepción o devolvemos 0.
-            error_log("Database Error: " . $e->getMessage());
+            // Registrar el error sin exponer el SQL o la data sensible al usuario
+            error_log("Database Query Error: " . $e->getMessage());
             return 0; 
         }
-    }
-
-    /**
-     * Ejecuta una consulta (INSERT, UPDATE, DELETE).
-     * @param string $sql Consulta SQL.
-     * @param array $params Parámetros para la consulta preparada.
-     * @return int Número de filas afectadas.
-     */
-    public function execute(string $sql, array $params = []): int
-    {
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params);
-
-        return $stmt->rowCount();
-    }
-
-    /**
-     * Ejecuta una consulta de lectura (SELECT).
-     * @param string $sql Consulta SQL.
-     * @param array $params Parámetros para la consulta preparada.
-     * @return object Retorna el objeto Statement para fetch.
-     */
-    public function query(string $sql, array $params = [])
-    {
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params);
-
-        return $stmt;
     }
 }
